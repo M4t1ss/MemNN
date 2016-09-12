@@ -75,34 +75,6 @@ local function test(words)
     return cost/N/g_params.batchsize
 end
 
-local function run(epochs)
-    for i = 1, epochs do
-        local c, ct
-        c = train(g_words_train)
-        ct = test(g_words_valid)
-
-        -- Logging
-        local m = #g_log_cost+1
-        g_log_cost[m] = {m, c, ct}
-        g_log_perp[m] = {m, math.exp(c), math.exp(ct)}
-        local stat = {perplexity = math.exp(c) , epoch = m,
-                valid_perplexity = math.exp(ct), LR = g_params.dt}
-        if g_params.test then
-            local ctt = test(g_words_test)
-            table.insert(g_log_cost[m], ctt)
-            table.insert(g_log_perp[m], math.exp(ctt))
-            stat['test_perplexity'] = math.exp(ctt)
-        end
-        print(stat)
-
-        -- Learning rate annealing
-        if m > 1 and g_log_cost[m][3] > g_log_cost[m-1][3] * 0.9999 then
-            g_params.dt = g_params.dt / 1.5
-            if g_params.dt < 1e-5 then break end
-        end
-    end
-end
-
 local function save(path)
     local d = {}
     d.params = g_params
@@ -110,6 +82,37 @@ local function save(path)
     d.log_cost = g_log_cost
     d.log_perp = g_log_perp
     torch.save(path, d)
+end
+
+local function run(epochs)
+	if g_params.test then
+		local ctt = test(g_words_test)
+		print('Perplexity: ' .. math.exp(ctt))
+	else
+		for i = 1, epochs do
+			local c, ct
+			if g_params.test~=true then
+				c = train(g_words_train)
+				ct = test(g_words_valid)
+
+				-- Logging
+				local m = #g_log_cost+1
+				g_log_cost[m] = {m, c, ct}
+				g_log_perp[m] = {m, math.exp(c), math.exp(ct)}
+				local stat = {perplexity = math.exp(c) , epoch = m,
+						valid_perplexity = math.exp(ct), LR = g_params.dt}
+			end
+
+			-- Learning rate annealing
+			if m > 1 and g_log_cost[m][3] > g_log_cost[m-1][3] * 0.9999 then
+				g_params.dt = g_params.dt / 1.5
+				if g_params.dt < 1e-5 then break end
+			end
+			if g_params.save ~= '' then
+				save(g_params.save)
+			end
+		end
+	end
 end
 
 --------------------------------------------------------------------
@@ -131,9 +134,12 @@ cmd:option('--load', '', 'model file to load')
 cmd:option('--save', '', 'path to save model')
 cmd:option('--epochs', 100)
 cmd:option('--test', false, 'enable testing')
+cmd:option('--data_name', '', 'enable testing')
 g_params = cmd:parse(arg or {})
 
-print(g_params)
+if g_params.test~=true then
+	print(g_params)
+end
 cutorch.setDevice(g_params.gpu)
 
 g_vocab =  tds.hash()
@@ -141,11 +147,13 @@ g_ivocab =  tds.hash()
 g_ivocab[#g_vocab+1] = '<eos>'
 g_vocab['<eos>'] = #g_vocab+1
 
-g_words_train = g_read_words('data/ptb.train.txt', g_vocab, g_ivocab)
-g_words_valid = g_read_words('data/ptb.valid.txt', g_vocab, g_ivocab)
-g_words_test = g_read_words('data/ptb.test.txt', g_vocab, g_ivocab)
+g_words_train = g_read_words(g_params.data_name .. '.train.txt', g_vocab, g_ivocab) --/home/matiss/data/dgt
+g_words_valid = g_read_words(g_params.data_name .. '.valid.txt', g_vocab, g_ivocab)
+g_words_test = g_read_words(g_params.data_name .. '.test.txt', g_vocab, g_ivocab)
 g_params.nwords = #g_vocab
-print('vocabulary size ' .. #g_vocab)
+if g_params.test~=true then
+	print('vocabulary size ' .. #g_vocab)
+end
 
 g_model = g_build_model(g_params)
 g_paramx, g_paramdx = g_model:getParameters()
@@ -159,7 +167,9 @@ g_log_cost = {}
 g_log_perp = {}
 g_params.dt = g_params.sdt
 
-print('starting to run....')
+if g_params.test~=true then
+	print('starting to run....')
+end
 run(g_params.epochs)
 
 if g_params.save ~= '' then

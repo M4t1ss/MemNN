@@ -33,6 +33,8 @@ function g_read_words(fname, vocab, ivocab)
         c = c + 1
         words[c][1] = vocab['<eos>']
     end
-    print('Read ' .. c .. ' words from ' .. fname)
+	if g_params.test~=true then
+		print('Read ' .. c .. ' words from ' .. fname)
+	end
     return words
 end
