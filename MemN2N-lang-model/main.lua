@@ -15,10 +15,23 @@ local function train(words)
     local N = math.ceil(words:size(1) / g_params.batchsize)
     local cost = 0
     local y = torch.ones(1)
-    local input = torch.CudaTensor(g_params.batchsize, g_params.edim)
-    local target = torch.CudaTensor(g_params.batchsize)
-    local context = torch.CudaTensor(g_params.batchsize, g_params.memsize)
-    local time = torch.CudaTensor(g_params.batchsize, g_params.memsize)
+	local input
+	local target
+	local context
+	local time
+	if g_params.gpu > 0 then
+		print('Training on GPU')
+		input = torch.CudaTensor(g_params.batchsize, g_params.edim)
+		target = torch.CudaTensor(g_params.batchsize)
+		context = torch.CudaTensor(g_params.batchsize, g_params.memsize)
+		time = torch.CudaTensor(g_params.batchsize, g_params.memsize)
+	else
+		print('Training on CPU')
+		input = torch.Tensor(g_params.batchsize, g_params.edim)
+		target = torch.Tensor(g_params.batchsize)
+		context = torch.Tensor(g_params.batchsize, g_params.memsize)
+		time = torch.Tensor(g_params.batchsize, g_params.memsize)
+	end
     input:fill(g_params.init_hid)
     for t = 1, g_params.memsize do
         time:select(2, t):fill(t)
@@ -48,10 +61,23 @@ end
 local function test(words)
     local N = math.ceil(words:size(1) / g_params.batchsize)
     local cost = 0
-    local input = torch.CudaTensor(g_params.batchsize, g_params.edim)
-    local target = torch.CudaTensor(g_params.batchsize)
-    local context = torch.CudaTensor(g_params.batchsize, g_params.memsize)
-    local time = torch.CudaTensor(g_params.batchsize, g_params.memsize)
+	local input
+	local target
+	local context
+	local time
+	if g_params.gpu > 0 then
+		print('Testing on GPU')
+		input = torch.CudaTensor(g_params.batchsize, g_params.edim)
+		target = torch.CudaTensor(g_params.batchsize)
+		context = torch.CudaTensor(g_params.batchsize, g_params.memsize)
+		time = torch.CudaTensor(g_params.batchsize, g_params.memsize)
+	else
+		print('Testing on CPU')
+		input = torch.Tensor(g_params.batchsize, g_params.edim)
+		target = torch.Tensor(g_params.batchsize)
+		context = torch.Tensor(g_params.batchsize, g_params.memsize)
+		time = torch.Tensor(g_params.batchsize, g_params.memsize)
+	end
     input:fill(g_params.init_hid)
     for t = 1, g_params.memsize do
         time:select(2, t):fill(t)
@@ -140,7 +166,10 @@ g_params = cmd:parse(arg or {})
 if g_params.test~=true then
 	print(g_params)
 end
-cutorch.setDevice(g_params.gpu)
+if g_params.gpu > 0 then
+	print('Using GPU ' .. g_params.gpu)
+	cutorch.setDevice(g_params.gpu)
+end
 
 g_vocab =  tds.hash()
 g_ivocab =  tds.hash()

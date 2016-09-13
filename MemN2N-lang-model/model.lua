@@ -6,6 +6,7 @@
 -- of patent rights can be found in the PATENTS file in the same directory.
 
 require('nn')
+-- not needed for CPU
 require('cunn')
 require('nngraph')
 paths.dofile('LinearNB.lua')
@@ -26,12 +27,18 @@ local function build_memory(params, input, context, time)
 
     for h = 1, params.nhop do
         local hid3dim = nn.View(1, -1):setNumInputDims(1)(hid[h-1])
-        local MMaout = nn.MM(false, true):cuda()
+        local MMaout = nn.MM(false, true)
+		if g_params.gpu > 0 then
+			MMaout:cuda()
+		end
         local Aout = MMaout({hid3dim, Ain})
         local Aout2dim = nn.View(-1):setNumInputDims(2)(Aout)
         local P = nn.SoftMax()(Aout2dim)
         local probs3dim = nn.View(1, -1):setNumInputDims(1)(P)
-        local MMbout = nn.MM(false, false):cuda()
+			local MMbout = nn.MM(false, false)
+		if g_params.gpu > 0 then
+			MMbout:cuda()
+		end
         local Bout = MMbout({probs3dim, Bin})
         local C = nn.LinearNB(params.edim, params.edim)(hid[h-1])
         table.insert(shareList[1], C)
@@ -63,14 +70,16 @@ function g_build_model(params)
     costl.sizeAverage = false
     local cost = costl({pred, target})
     local model = nn.gModule({input, target, context, time}, {cost})
-    model:cuda()
-    -- IMPORTANT! do weight sharing after model is in cuda
-    for i = 1,#shareList do
-        local m1 = shareList[i][1].data.module
-        for j = 2,#shareList[i] do
-            local m2 = shareList[i][j].data.module
-            m2:share(m1,'weight','bias','gradWeight','gradBias')
-        end
-    end
+	if g_params.gpu > 0 then
+		model:cuda()
+		-- IMPORTANT! do weight sharing after model is in cuda
+		for i = 1,#shareList do
+			local m1 = shareList[i][1].data.module
+			for j = 2,#shareList[i] do
+				local m2 = shareList[i][j].data.module
+				m2:share(m1,'weight','bias','gradWeight','gradBias')
+			end
+		end
+	end
     return model
 end
