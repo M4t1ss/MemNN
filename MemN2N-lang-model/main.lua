@@ -117,18 +117,21 @@ local function run(epochs)
 	else
 		for i = 1, epochs do
 			local c, ct
-			if g_params.test~=true then
-				c = train(g_words_train)
-				ct = test(g_words_valid)
+			c = train(g_words_train)
+			ct = test(g_words_valid)
 
-				-- Logging
-				local m = #g_log_cost+1
-				g_log_cost[m] = {m, c, ct}
-				g_log_perp[m] = {m, math.exp(c), math.exp(ct)}
-				local stat = {perplexity = math.exp(c) , epoch = m,
-						valid_perplexity = math.exp(ct), LR = g_params.dt}
-			end
-
+			-- Logging
+			local m = #g_log_cost+1
+			g_log_cost[m] = {m, c, ct}
+			g_log_perp[m] = {m, math.exp(c), math.exp(ct)}
+			local stat = {perplexity = math.exp(c) , epoch = m,
+					valid_perplexity = math.exp(ct), LR = g_params.dt}
+			local ctt = test(g_words_test)
+			table.insert(g_log_cost[m], ctt)
+			table.insert(g_log_perp[m], math.exp(ctt))
+			stat['test_perplexity'] = math.exp(ctt)
+			print(stat)
+					
 			-- Learning rate annealing
 			if m > 1 and g_log_cost[m][3] > g_log_cost[m-1][3] * 0.9999 then
 				g_params.dt = g_params.dt / 1.5
